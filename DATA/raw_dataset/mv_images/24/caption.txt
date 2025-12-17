@@ -1,0 +1,8 @@
+<Front View>
+The cap is a short, circular cylindrical piece finished in glossy black, positioned at the top center of the object’s neck; its surface is smooth and uninterrupted, with a subtle seam visible at the base where it meets the neck, indicating a screw-on attachment. A slender, colorless glass pipette extends downward from the cap into the body of the object, with a uniform diameter and a fine rounded tip that sits just outside the mouth area; the pipette appears to be securely seated in the cap through a tight seal, forming a continuous, unobtrusive line from cap to the interior. The connection between the cap and the pipette is seamless, suggesting the pipette is integrated as part of the cap assembly rather than a separate detachable piece.
+
+<Side View>
+The cap is seen from the side as a dark, circular cylinder clamped atop the neck of the object; its exterior surface is glossy and reflects light, with a visible circular edge at the outer perimeter and a slight underside contour where it meets the neck, indicating a screw-fit attachment. The glass pipette exits the cap at a shallow angle, continuing toward the left and downward; the pipette remains colorless with a consistent diameter, and its tip is rounded just beyond the cap’s edge, indicating the dispensing end. The pipette is anchored to the cap with a tight, flush interface, forming a single, uninterrupted line along the cap’s side and into the neck region of the object.
+
+<Bottom View>
+No hardware elements are visible from the bottom view; the base presents as a plain circular surface of the transparent body with a smooth, flat underside and no protruding fittings or components.
