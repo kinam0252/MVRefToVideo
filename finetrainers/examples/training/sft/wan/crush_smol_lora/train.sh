@@ -14,8 +14,12 @@ export FINETRAINERS_LOG_LEVEL="DEBUG"
 BACKEND="ptd"
 
 # In this setting, I'm using 2 GPUs on a 4-GPU node for training
-NUM_GPUS=2
-CUDA_VISIBLE_DEVICES="2,3"
+# NUM_GPUS=2
+# CUDA_VISIBLE_DEVICES="2,3"
+
+NUM_GPUS=1
+CUDA_VISIBLE_DEVICES="2" #H200 2번으로 할당
+
 
 # Check the JSON files for the expected JSON format
 TRAINING_DATASET_CONFIG="examples/training/sft/wan/crush_smol_lora/training.json"
@@ -31,13 +35,19 @@ HSDP_2_2="--parallel_backend $BACKEND --pp_degree 1 --dp_degree 2 --dp_shards 2 
 
 # Parallel arguments
 parallel_cmd=(
-  $DDP_2
+  $DDP_1
 )
 
 # Model arguments
+# model_cmd=(
+#   --model_name "wan"
+#   --pretrained_model_name_or_path "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
+# )
+
+# # After (14B)
 model_cmd=(
   --model_name "wan"
-  --pretrained_model_name_or_path "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
+  --pretrained_model_name_or_path "Wan-AI/Wan2.1-T2V-14B-Diffusers"
 )
 
 # Dataset arguments
@@ -50,7 +60,7 @@ dataset_cmd=(
   --dataset_config $TRAINING_DATASET_CONFIG
   --dataset_shuffle_buffer_size 10
   --enable_precomputation
-  --precomputation_items 25
+  --precomputation_items 50
   --precomputation_once
 )
 
@@ -71,15 +81,15 @@ training_cmd=(
   --training_type "lora"
   --seed 42
   --batch_size 1
-  --train_steps 3000
+  --train_steps 3000 #테스트 -> 100, #실제 -> 3000
   --rank 32
   --lora_alpha 32
   --target_modules "blocks.*(to_q|to_k|to_v|to_out.0)"
   --gradient_accumulation_steps 1
   --gradient_checkpointing
-  --checkpointing_steps 500
+  --checkpointing_steps 500 #테스트 -> 50,  #실제 -> 500
   --checkpointing_limit 2
-  # --resume_from_checkpoint 3000
+  # --resume_from_checkpoint 50 #실제 -> 3000
   --enable_slicing
   --enable_tiling
 )
@@ -101,17 +111,28 @@ optimizer_cmd=(
 # Validation arguments
 validation_cmd=(
   --validation_dataset_file "$VALIDATION_DATASET_FILE"
-  --validation_steps 500
+  --validation_steps 500 #테스트 -> 50, #실제 -> 500
 )
 
 # Miscellaneous arguments
+# miscellaneous_cmd=(
+#   --tracker_name "finetrainers-wan"
+#   --output_dir "/raid/aryan/wan"
+#   --init_timeout 600
+#   --nccl_timeout 600
+#   --report_to "wandb"
+# )
+
+#AFTER 
 miscellaneous_cmd=(
   --tracker_name "finetrainers-wan"
-  --output_dir "/raid/aryan/wan"
+  #--output_dir "/home/nas5/kinamkim/Repos/geonwoo/MVRefToVideo/finetrainers/output/wan_1.3b_test"
+  --output_dir "/home/nas5/kinamkim/Repos/geonwoo/MVRefToVideo/finetrainers/output/wan_14b_3k"
   --init_timeout 600
   --nccl_timeout 600
   --report_to "wandb"
 )
+
 
 # Execute the training script
 if [ "$BACKEND" == "accelerate" ]; then

@@ -23,6 +23,17 @@ from finetrainers.processors import ProcessorMixin, T5Processor
 from finetrainers.typing import ArtifactType, SchedulerType
 from finetrainers.utils import get_non_null_items, safetensors_torch_save_function
 
+# Pixel Space (from metadata.json)
+MULTIVIEW_WIDTH_PIXEL = 160   # Condition (left panel)
+VIDEO_WIDTH_PIXEL = 832        # Generation (right panel)
+TOTAL_WIDTH_PIXEL = 992        # Total concat width
+HEIGHT_PIXEL = 480
+VAE_SCALE_FACTOR = 8
+
+MULTIVIEW_WIDTH_LATENT = MULTIVIEW_WIDTH_PIXEL // VAE_SCALE_FACTOR  # 20
+VIDEO_WIDTH_LATENT = VIDEO_WIDTH_PIXEL // VAE_SCALE_FACTOR          # 104
+TOTAL_WIDTH_LATENT = TOTAL_WIDTH_PIXEL // VAE_SCALE_FACTOR          # 124
+HEIGHT_LATENT = HEIGHT_PIXEL // VAE_SCALE_FACTOR                     # 60
 
 logger = get_logger()
 
@@ -356,11 +367,11 @@ class WanModelSpecification(ModelSpecification):
         components = get_non_null_items(components)
 
         if self.transformer_config.get("image_dim", None) is not None:
-            pipe = WanPipeline.from_pretrained(
+            pipe = WanImageToVideoPipeline.from_pretrained(
                 self.pretrained_model_name_or_path, **components, revision=self.revision, cache_dir=self.cache_dir
             )
         else:
-            pipe = WanImageToVideoPipeline.from_pretrained(
+            pipe = WanPipeline.from_pretrained(
                 self.pretrained_model_name_or_path, **components, revision=self.revision, cache_dir=self.cache_dir
             )
         pipe.text_encoder.to(self.text_encoder_dtype)
@@ -474,6 +485,19 @@ class WanModelSpecification(ModelSpecification):
             del posterior
 
         noise = torch.zeros_like(latents).normal_(generator=generator)
+        # 조건 부분(왼쪽 멀티뷰)에는 노이즈 0으로
+        # latents shape: (B, C, T, H, W)
+        # W dimension: [20 (multiview) | 104 (video)] = 124 total
+        condition_width = MULTIVIEW_WIDTH_LATENT #20
+        noise[:, :, :, :, :condition_width] = 0.0
+
+        # 디버그 로그 (옵션, 테스트 시만)
+        if True:  # True로 변경하면 로그 출력
+            print(f"[IC-LoRA DEBUG] Noise shape: {noise.shape}")
+            print(f"[IC-LoRA DEBUG] Condition width: {condition_width}")
+            print(f"[IC-LoRA DEBUG] Left noise max: {noise[:, :, :, :, :condition_width].abs().max().item():.6f}")
+            print(f"[IC-LoRA DEBUG] Right noise max: {noise[:, :, :, :, condition_width:].abs().max().item():.6f}")
+
         noisy_latents = FF.flow_match_xt(latents, noise, sigmas)
         timesteps = (sigmas.flatten() * 1000.0).long()
 
@@ -516,6 +540,7 @@ class WanModelSpecification(ModelSpecification):
             "return_dict": True,
             "output_type": "pil",
         }
+        #Before 
         if self.transformer_config.get("image_dim", None) is not None:
             if image is None and video is None:
                 raise ValueError("Either image or video must be provided for Wan I2V validation.")
@@ -528,6 +553,7 @@ class WanModelSpecification(ModelSpecification):
         video = pipeline(**generation_kwargs).frames[0]
         return [VideoArtifact(value=video)]
 
+    
     def _save_lora_weights(
         self,
         directory: str,

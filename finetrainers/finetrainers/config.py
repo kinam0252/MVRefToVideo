@@ -73,3 +73,4 @@ def _get_model_specifiction_cls(model_name: str, training_type: str) -> Type[Mod
             f"Training type {training_type} not supported for model {model_name}. Supported training types are: {list(SUPPORTED_MODEL_CONFIGS[model_name].keys())}"
         )
     return SUPPORTED_MODEL_CONFIGS[model_name][training_type]
+

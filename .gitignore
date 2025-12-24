@@ -1,1 +1,18 @@
-data_preprocess/
+data_preprocess/finetrainers/check_video_info.py
+finetrainers/show_directory_tree.py
+# 제외할 파일들
+finetrainers/check_video_info.py
+finetrainers/show_directory_tree.py
+finetrainers/logs/
+finetrainers/test_run.log
+*.pyc
+__pycache__/
+.vscode/
+# Exclude files
+finetrainers/output/
+finetrainers/logs/
+finetrainers/check_video_info.py
+finetrainers/show_directory_tree.py
+finetrainers/test_run.log
+*.pyc
+__pycache__/

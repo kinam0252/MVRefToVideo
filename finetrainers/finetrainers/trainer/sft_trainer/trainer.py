@@ -24,6 +24,7 @@ from finetrainers.state import TrainState
 from ..base import Trainer
 from .config import SFTFullRankConfig, SFTLowRankConfig
 
+MULTIVIEW_WIDTH_LATENT = 20
 
 ArgsType = Union[BaseArgsType, SFTFullRankConfig, SFTLowRankConfig]
 
@@ -471,7 +472,10 @@ class SFTTrainer(Trainer):
 
                 # 4. Compute loss & backward pass
                 with self.tracker.timed("timing/backward"):
-                    loss = weights.float() * (pred.float() - target.float()).pow(2)
+                    # 오른쪽 패널만 Loss 계산
+                    condition_width = MULTIVIEW_WIDTH_LATENT  # 20
+                    
+                    loss = weights.float() * (pred[:, :, :, :, condition_width:].float() - target[:, :, :, :, condition_width:].float()).pow(2)
                     # Average loss across all but batch dimension (for per-batch debugging in case needed)
                     loss = loss.mean(list(range(1, loss.ndim)))
                     # Average loss across batch dimension
