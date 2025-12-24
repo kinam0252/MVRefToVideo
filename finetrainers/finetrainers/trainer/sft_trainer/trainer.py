@@ -24,8 +24,6 @@ from finetrainers.state import TrainState
 from ..base import Trainer
 from .config import SFTFullRankConfig, SFTLowRankConfig
 
-MULTIVIEW_WIDTH_LATENT = 20
-
 ArgsType = Union[BaseArgsType, SFTFullRankConfig, SFTLowRankConfig]
 
 logger = logging.get_logger()
@@ -459,6 +457,7 @@ class SFTTrainer(Trainer):
                         latent_model_conditions=latent_model_conditions,
                         sigmas=sigmas,
                         compute_posterior=compute_posterior,
+                        condition_width_pixel=self.args.condition_width_pixel, 
                     )
 
                 timesteps = (sigmas * 1000.0).long()
@@ -473,9 +472,22 @@ class SFTTrainer(Trainer):
                 # 4. Compute loss & backward pass
                 with self.tracker.timed("timing/backward"):
                     # 오른쪽 패널만 Loss 계산
-                    condition_width = MULTIVIEW_WIDTH_LATENT  # 20
-                    
-                    loss = weights.float() * (pred[:, :, :, :, condition_width:].float() - target[:, :, :, :, condition_width:].float()).pow(2)
+                    vae_scale_factor = getattr(self.transformer.config, 'vae_scale_factor', 8)
+                    condition_width_latent = self.args.condition_width_pixel // vae_scale_factor
+
+                    # 디버그 (첫 step만)
+                    if train_state.step == 1 and parallel_backend.is_local_main_process:
+                        total_width_latent = pred.shape[-1]
+                        total_width_pixel = total_width_latent * vae_scale_factor
+                        video_width_pixel = total_width_pixel - self.args.condition_width_pixel
+                        
+                        logger.info(f"[IC-LoRA Loss] VAE scale: {vae_scale_factor}")
+                        logger.info(f"[IC-LoRA Loss] Condition: {self.args.condition_width_pixel}px → {condition_width_latent} latent")
+                        logger.info(f"[IC-LoRA Loss] Video: {video_width_pixel}px")
+                        logger.info(f"[IC-LoRA Loss] Total: {total_width_pixel}px")
+
+                    loss = weights.float() * (pred[:, :, :, :, condition_width_latent:].float() - target[:, :, :, :, condition_width_latent:].float()).pow(2)
+
                     # Average loss across all but batch dimension (for per-batch debugging in case needed)
                     loss = loss.mean(list(range(1, loss.ndim)))
                     # Average loss across batch dimension

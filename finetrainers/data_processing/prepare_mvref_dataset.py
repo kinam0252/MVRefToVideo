@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-TODO #2: MVREF 데이터셋 준비 (개선 버전)
+MVREF 데이터셋 준비
 - View 정보 명시
 - Caption 길이 제한 제거
 """

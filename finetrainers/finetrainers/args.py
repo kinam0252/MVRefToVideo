@@ -433,6 +433,7 @@ class BaseArgs:
     resume_from_checkpoint: Optional[str] = None
     enable_slicing: bool = False
     enable_tiling: bool = False
+    condition_width_pixel: int = 160
 
     # Optimizer arguments
     optimizer: str = "adamw"
@@ -803,7 +804,8 @@ def _add_training_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--resume_from_checkpoint", type=str, default=None)
     parser.add_argument("--enable_slicing", action="store_true")
     parser.add_argument("--enable_tiling", action="store_true")
-
+    parser.add_argument("--condition_width_pixel", type=int, default=160,
+                        help="Width of condition (multiview) panel in pixels")
 
 def _add_optimizer_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--lr", type=float, default=1e-4)
@@ -954,7 +956,8 @@ def _map_to_args_type(args: Dict[str, Any]) -> BaseArgs:
     result_args.resume_from_checkpoint = args.resume_from_checkpoint
     result_args.enable_slicing = args.enable_slicing
     result_args.enable_tiling = args.enable_tiling
-
+    result_args.condition_width_pixel = args.condition_width_pixel
+    
     # Optimizer arguments
     result_args.optimizer = args.optimizer or "adamw"
     result_args.lr = args.lr or 1e-4

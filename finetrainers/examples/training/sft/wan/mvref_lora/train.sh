@@ -86,6 +86,7 @@ training_cmd=(
   # --resume_from_checkpoint 50 #실제 -> 3000
   --enable_slicing
   --enable_tiling
+  --condition_width_pixel 160
 )
 
 # Optimizer arguments

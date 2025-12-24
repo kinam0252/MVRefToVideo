@@ -23,18 +23,6 @@ from finetrainers.processors import ProcessorMixin, T5Processor
 from finetrainers.typing import ArtifactType, SchedulerType
 from finetrainers.utils import get_non_null_items, safetensors_torch_save_function
 
-# Pixel Space (from metadata.json)
-MULTIVIEW_WIDTH_PIXEL = 160   # Condition (left panel)
-VIDEO_WIDTH_PIXEL = 832        # Generation (right panel)
-TOTAL_WIDTH_PIXEL = 992        # Total concat width
-HEIGHT_PIXEL = 480
-VAE_SCALE_FACTOR = 8
-
-MULTIVIEW_WIDTH_LATENT = MULTIVIEW_WIDTH_PIXEL // VAE_SCALE_FACTOR  # 20
-VIDEO_WIDTH_LATENT = VIDEO_WIDTH_PIXEL // VAE_SCALE_FACTOR          # 104
-TOTAL_WIDTH_LATENT = TOTAL_WIDTH_PIXEL // VAE_SCALE_FACTOR          # 124
-HEIGHT_LATENT = HEIGHT_PIXEL // VAE_SCALE_FACTOR                     # 60
-
 logger = get_logger()
 
 
@@ -488,15 +476,25 @@ class WanModelSpecification(ModelSpecification):
         # 조건 부분(왼쪽 멀티뷰)에는 노이즈 0으로
         # latents shape: (B, C, T, H, W)
         # W dimension: [20 (multiview) | 104 (video)] = 124 total
-        condition_width = MULTIVIEW_WIDTH_LATENT #20
-        noise[:, :, :, :, :condition_width] = 0.0
+        vae_scale_factor = getattr(transformer.config, 'vae_scale_factor', 8)
+        condition_width_pixel = kwargs.get('condition_width_pixel', 160)
+        condition_width_latent = condition_width_pixel // vae_scale_factor
+        noise[:, :, :, :, :condition_width_latent] = 0.0
 
-        # 디버그 로그 (옵션, 테스트 시만)
-        if True:  # True로 변경하면 로그 출력
-            print(f"[IC-LoRA DEBUG] Noise shape: {noise.shape}")
-            print(f"[IC-LoRA DEBUG] Condition width: {condition_width}")
-            print(f"[IC-LoRA DEBUG] Left noise max: {noise[:, :, :, :, :condition_width].abs().max().item():.6f}")
-            print(f"[IC-LoRA DEBUG] Right noise max: {noise[:, :, :, :, condition_width:].abs().max().item():.6f}")
+        # 디버그 (옵션)
+        if kwargs.get('debug_ic_lora', False):
+            total_width_latent = latents.shape[-1]
+            total_width_pixel = total_width_latent * vae_scale_factor
+            video_width_pixel = total_width_pixel - condition_width_pixel
+            video_width_latent = total_width_latent - condition_width_latent
+            
+            logger = kwargs.get('logger')
+            if logger:
+                logger.debug(f"[IC-LoRA] Latents shape: {latents.shape}")
+                logger.debug(f"[IC-LoRA] VAE scale: {vae_scale_factor}")
+                logger.debug(f"[IC-LoRA] Condition: {condition_width_pixel}px → {condition_width_latent} latent")
+                logger.debug(f"[IC-LoRA] Video: {video_width_pixel}px → {video_width_latent} latent")
+                logger.debug(f"[IC-LoRA] Total: {total_width_pixel}px → {total_width_latent} latent")   
 
         noisy_latents = FF.flow_match_xt(latents, noise, sigmas)
         timesteps = (sigmas.flatten() * 1000.0).long()
