@@ -18,7 +18,7 @@ BACKEND="ptd"
 # CUDA_VISIBLE_DEVICES="2,3"
 
 NUM_GPUS=1
-CUDA_VISIBLE_DEVICES="3" #H200 3번으로 할당
+# CUDA_VISIBLE_DEVICES="7" #H200 3번으로 할당
 
 
 # Check the JSON files for the expected JSON format
@@ -42,6 +42,7 @@ parallel_cmd=(
 model_cmd=(
   --model_name "wan"
   --pretrained_model_name_or_path "Wan-AI/Wan2.1-T2V-14B-Diffusers"
+  --use_iclora
 )
 
 # Dataset arguments
@@ -55,7 +56,8 @@ dataset_cmd=(
   --dataset_shuffle_buffer_size 10
   --enable_precomputation
   --precomputation_items 50
-  --precomputation_once
+  # --precomputation_once
+  --precomputation_reuse
 )
 
 # Dataloader arguments
@@ -84,8 +86,8 @@ training_cmd=(
   --checkpointing_steps 50 #테스트 -> 50, 실제 -> 500
   --checkpointing_limit 2
   # --resume_from_checkpoint 50 #실제 -> 3000
-  --enable_slicing
-  --enable_tiling
+  # --enable_slicing
+  # --enable_tiling
   --condition_width_pixel 160
 )
 
@@ -106,7 +108,7 @@ optimizer_cmd=(
 # Validation arguments
 validation_cmd=(
   --validation_dataset_file "$VALIDATION_DATASET_FILE"
-  --validation_steps 50 #테스트 -> 50, #실제 -> 500
+  --validation_steps 1 #테스트 -> 50, #실제 -> 500
 )
 
 # Miscellaneous arguments
@@ -119,9 +121,12 @@ validation_cmd=(
 # )
 
 #AFTER 
+# ICLoRA 관련 고정 폴더명
+OUTPUT_DIR="outputs/wan_iclora"
+
 miscellaneous_cmd=(
   --tracker_name "finetrainers-wan"
-  --output_dir "/home/nas5/kinamkim/Repos/geonwoo/MVRefToVideo/finetrainers/output/wan_14b_test_1223"
+  --output_dir "$OUTPUT_DIR"
   --init_timeout 600
   --nccl_timeout 600
   --report_to "wandb"

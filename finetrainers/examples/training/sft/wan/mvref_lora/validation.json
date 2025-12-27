@@ -1,16 +1,36 @@
 {
   "data": [
     {
-      "caption": "MVREF A multi-view reference video showing: [Front View] detailed front features, [Side View] side profile, [Bottom View] bottom details, [Top View] top surface, with smooth transitions between views"
+      "caption": "MVREF A multi-view reference video showing: [Front View] detailed front features, [Side View] side profile, [Bottom View] bottom details, [Top View] top surface, with smooth transitions between views",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/videos/1.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
     },
     {
-      "caption": "MVREF Multi-angle footage: [Front View] front-facing elements, [Back View] rear components, [Left View] left side, [Right View] right side, [Top View] overhead, [Bottom View] underside"
+      "caption": "MVREF Multi-angle footage: [Front View] front-facing elements, [Back View] rear components, [Left View] left side, [Right View] right side, [Top View] overhead, [Bottom View] underside",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/videos/2.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
     },
     {
-      "caption": "MVREF A comprehensive reference: [Front View] primary face, [Side View] lateral view, [Bottom View] base details, with complete 360-degree coverage"
+      "caption": "MVREF A comprehensive reference: [Front View] primary face, [Side View] lateral view, [Bottom View] base details, with complete 360-degree coverage",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/videos/5.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
     },
     {
-      "caption": "MVREF Multi-view documentation: [Front View] frontal details, [Top View] top-down perspective, [Bottom View] bottom surface, showing all angles systematically"
+      "caption": "MVREF Multi-view documentation: [Front View] frontal details, [Top View] top-down perspective, [Bottom View] bottom surface, showing all angles systematically",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/videos/4.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
     }
   ]
 }

@@ -646,7 +646,7 @@ class SFTTrainer(Trainer):
             validation_data = validation_data[0]
             with self.attention_provider_ctx(training=False):
                 validation_artifacts = self.model_specification.validation(
-                    pipeline=pipeline, generator=generator, **validation_data
+                    pipeline=pipeline, generator=generator, condition_width_pixel=self.args.condition_width_pixel, **validation_data
                 )
 
             if dp_local_rank != 0:
@@ -790,6 +790,21 @@ class SFTTrainer(Trainer):
 
         if not final_validation:
             module_names.remove("transformer")
+            use_iclora_flag = getattr(self.args, 'use_iclora', False)
+            logger.info(f"[_init_pipeline] final_validation={final_validation}, use_iclora={use_iclora_flag}")
+            
+            # ICLoRA 파이프라인을 사용하려면 tokenizer, text_encoder, vae가 필요함
+            # 컴포넌트가 아직 로드되지 않았으면 로드
+            if use_iclora_flag:
+                if self.tokenizer is None or self.text_encoder is None or self.vae is None:
+                    logger.info("[_init_pipeline] Loading condition and latent models for ICLoRA pipeline")
+                    if not self._are_condition_models_loaded:
+                        condition_components = self.model_specification.load_condition_models()
+                        self._set_components(condition_components)
+                    if self.vae is None:
+                        latent_components = self.model_specification.load_latent_models()
+                        self._set_components(latent_components)
+            
             pipeline = self.model_specification.load_pipeline(
                 tokenizer=self.tokenizer,
                 tokenizer_2=self.tokenizer_2,
@@ -807,6 +822,7 @@ class SFTTrainer(Trainer):
                 enable_tiling=self.args.enable_tiling,
                 enable_model_cpu_offload=self.args.enable_model_cpu_offload,
                 training=True,
+                use_iclora=use_iclora_flag,
             )
         else:
             self._delete_components()
@@ -816,12 +832,19 @@ class SFTTrainer(Trainer):
             if self.args.training_type == TrainingType.FULL_FINETUNE:
                 transformer = self.model_specification.load_diffusion_models()["transformer"]
 
+            use_iclora_flag = getattr(self.args, 'use_iclora', False)
+            logger.info(f"[_init_pipeline] final_validation={final_validation}, use_iclora={use_iclora_flag}")
+            # ICLoRA 파이프라인을 사용하려면 tokenizer, text_encoder, vae가 필요함
             pipeline = self.model_specification.load_pipeline(
+                tokenizer=self.tokenizer,
+                text_encoder=self.text_encoder,
                 transformer=transformer,
+                vae=self.vae,
                 enable_slicing=self.args.enable_slicing,
                 enable_tiling=self.args.enable_tiling,
                 enable_model_cpu_offload=self.args.enable_model_cpu_offload,
                 training=False,
+                use_iclora=use_iclora_flag,
             )
 
             # Load the LoRA weights if performing LoRA finetuning

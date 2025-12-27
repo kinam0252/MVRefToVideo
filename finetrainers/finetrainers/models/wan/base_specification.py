@@ -19,6 +19,7 @@ import finetrainers.functional as FF
 from finetrainers.data import VideoArtifact
 from finetrainers.logging import get_logger
 from finetrainers.models.modeling_utils import ModelSpecification
+from finetrainers.models.wan.iclora_pipeline import WanICLoRAPipeline
 from finetrainers.processors import ProcessorMixin, T5Processor
 from finetrainers.typing import ArtifactType, SchedulerType
 from finetrainers.utils import get_non_null_items, safetensors_torch_save_function
@@ -341,8 +342,9 @@ class WanModelSpecification(ModelSpecification):
         enable_tiling: bool = False,
         enable_model_cpu_offload: bool = False,
         training: bool = False,
+        use_iclora: bool = False,
         **kwargs,
-    ) -> Union[WanPipeline, WanImageToVideoPipeline]:
+    ) -> Union[WanPipeline, WanImageToVideoPipeline, WanICLoRAPipeline]:
         components = {
             "tokenizer": tokenizer,
             "text_encoder": text_encoder,
@@ -354,7 +356,24 @@ class WanModelSpecification(ModelSpecification):
         }
         components = get_non_null_items(components)
 
-        if self.transformer_config.get("image_dim", None) is not None:
+        logger.info(f"[load_pipeline] use_iclora={use_iclora}, training={training}, tokenizer={tokenizer is not None}, text_encoder={text_encoder is not None}, vae={vae is not None}")
+        
+        if use_iclora:
+            # ICLoRA 파이프라인은 직접 인스턴스화
+            if scheduler is None:
+                # load_diffusion_models에서 사용하는 것과 동일한 스케줄러 사용
+                scheduler = FlowMatchEulerDiscreteScheduler()
+            if tokenizer is None or text_encoder is None or vae is None:
+                raise ValueError("tokenizer, text_encoder, and vae must be provided for ICLoRA pipeline")
+            
+            pipe = WanICLoRAPipeline(
+                tokenizer=tokenizer,
+                text_encoder=text_encoder,
+                vae=vae,
+                scheduler=scheduler,
+                transformer=transformer,
+            )
+        elif self.transformer_config.get("image_dim", None) is not None:
             pipe = WanImageToVideoPipeline.from_pretrained(
                 self.pretrained_model_name_or_path, **components, revision=self.revision, cache_dir=self.cache_dir
             )
@@ -366,7 +385,8 @@ class WanModelSpecification(ModelSpecification):
         pipe.vae.to(self.vae_dtype)
 
         if not training:
-            pipe.transformer.to(self.transformer_dtype)
+            if pipe.transformer is not None:
+                pipe.transformer.to(self.transformer_dtype)
 
         # TODO(aryan): add support in diffusers
         # if enable_slicing:
@@ -516,7 +536,7 @@ class WanModelSpecification(ModelSpecification):
 
     def validation(
         self,
-        pipeline: Union[WanPipeline, WanImageToVideoPipeline],
+        pipeline: Union[WanPipeline, WanImageToVideoPipeline, WanICLoRAPipeline],
         prompt: str,
         image: Optional[PIL.Image.Image] = None,
         last_image: Optional[PIL.Image.Image] = None,
@@ -528,6 +548,10 @@ class WanModelSpecification(ModelSpecification):
         generator: Optional[torch.Generator] = None,
         **kwargs,
     ) -> List[ArtifactType]:
+        # Pipeline 타입 확인
+        pipeline_type = type(pipeline).__name__
+        logger.info(f"[Validation] Pipeline type: {pipeline_type}, video is not None: {video is not None}")
+        
         generation_kwargs = {
             "prompt": prompt,
             "height": height,
@@ -538,8 +562,45 @@ class WanModelSpecification(ModelSpecification):
             "return_dict": True,
             "output_type": "pil",
         }
+        # Add condition_width_pixel if provided
+        if "condition_width_pixel" in kwargs:
+            generation_kwargs["condition_width_pixel"] = kwargs["condition_width_pixel"]
+        
+        # ICLoRA 파이프라인인 경우 input_video 처리
+        if isinstance(pipeline, WanICLoRAPipeline):
+            if video is not None:
+                # PIL.Image 리스트를 tensor로 변환: [F, C, H, W]
+                device = pipeline._execution_device
+                dtype = pipeline.vae.dtype
+                
+                # PIL.Image를 tensor로 변환 (각 프레임을 [C, H, W] 형태로)
+                import numpy as np
+                video_tensors = []
+                for frame in video:
+                    frame = frame.convert("RGB")
+                    frame_array = np.array(frame).astype(np.float32) / 255.0  # [H, W, C] in [0, 1]
+                    frame_tensor = torch.from_numpy(frame_array).permute(2, 0, 1)  # [C, H, W]
+                    video_tensors.append(frame_tensor)
+                
+                # [F, C, H, W] 형태로 스택
+                video_tensor = torch.stack(video_tensors, dim=0)  # [F, C, H, W]
+                
+                # video_processor를 사용하여 전처리 (preprocess_video는 [F, C, H, W] 또는 [B, F, C, H, W] 형태를 받음)
+                if height is not None and width is not None:
+                    video_tensor = pipeline.video_processor.preprocess_video(
+                        video_tensor, height=height, width=width
+                    )
+                else:
+                    video_tensor = pipeline.video_processor.preprocess_video(video_tensor)
+                
+                # [B, F, C, H, W] 형태로 변환 (batch dimension 추가)
+                if video_tensor.ndim == 4:  # [F, C, H, W]
+                    video_tensor = video_tensor.unsqueeze(0)  # [1, F, C, H, W]
+                
+                video_tensor = video_tensor.to(device=device, dtype=dtype)
+                generation_kwargs["input_video"] = video_tensor
         #Before 
-        if self.transformer_config.get("image_dim", None) is not None:
+        elif self.transformer_config.get("image_dim", None) is not None:
             if image is None and video is None:
                 raise ValueError("Either image or video must be provided for Wan I2V validation.")
             image = image if image is not None else video[0]

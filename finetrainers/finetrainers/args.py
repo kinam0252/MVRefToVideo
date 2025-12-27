@@ -389,6 +389,7 @@ class BaseArgs:
     text_encoder_3_dtype: torch.dtype = torch.bfloat16
     transformer_dtype: torch.dtype = torch.bfloat16
     vae_dtype: torch.dtype = torch.bfloat16
+    use_iclora: bool = False
     layerwise_upcasting_modules: List[str] = []
     layerwise_upcasting_storage_dtype: torch.dtype = torch.float8_e4m3fn
     # fmt: off
@@ -741,6 +742,7 @@ def _add_model_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--text_encoder_3_dtype", type=str, default="bf16")
     parser.add_argument("--transformer_dtype", type=str, default="bf16")
     parser.add_argument("--vae_dtype", type=str, default="bf16")
+    parser.add_argument("--use_iclora", action="store_true", help="Use ICLoRA pipeline for validation")
     parser.add_argument("--layerwise_upcasting_modules", type=str, default=[], nargs="+", choices=["transformer"])
     parser.add_argument(
         "--layerwise_upcasting_storage_dtype",
@@ -914,6 +916,7 @@ def _map_to_args_type(args: Dict[str, Any]) -> BaseArgs:
     result_args.text_encoder_3_dtype = _DTYPE_MAP[args.text_encoder_3_dtype]
     result_args.transformer_dtype = _DTYPE_MAP[args.transformer_dtype]
     result_args.vae_dtype = _DTYPE_MAP[args.vae_dtype]
+    result_args.use_iclora = getattr(args, 'use_iclora', False)
     result_args.layerwise_upcasting_modules = args.layerwise_upcasting_modules
     result_args.layerwise_upcasting_storage_dtype = _DTYPE_MAP[args.layerwise_upcasting_storage_dtype]
     result_args.layerwise_upcasting_skip_modules_pattern = args.layerwise_upcasting_skip_modules_pattern
