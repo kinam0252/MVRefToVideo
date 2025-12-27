@@ -493,13 +493,15 @@ class WanModelSpecification(ModelSpecification):
             del posterior
 
         noise = torch.zeros_like(latents).normal_(generator=generator)
-        # 조건 부분(왼쪽 멀티뷰)에는 노이즈 0으로
+        # 조건 부분(왼쪽 멀티뷰)에는 노이즈 0으로 (ICLoRA 사용 시에만)
         # latents shape: (B, C, T, H, W)
         # W dimension: [20 (multiview) | 104 (video)] = 124 total
-        vae_scale_factor = getattr(transformer.config, 'vae_scale_factor', 8)
-        condition_width_pixel = kwargs.get('condition_width_pixel', 160)
-        condition_width_latent = condition_width_pixel // vae_scale_factor
-        noise[:, :, :, :, :condition_width_latent] = 0.0
+        use_iclora = kwargs.get('use_iclora', False)
+        if use_iclora:
+            vae_scale_factor = getattr(transformer.config, 'vae_scale_factor', 8)
+            condition_width_pixel = kwargs.get('condition_width_pixel', 160)
+            condition_width_latent = condition_width_pixel // vae_scale_factor
+            noise[:, :, :, :, :condition_width_latent] = 0.0
 
         # 디버그 (옵션)
         if kwargs.get('debug_ic_lora', False):

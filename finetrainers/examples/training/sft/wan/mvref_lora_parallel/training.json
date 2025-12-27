@@ -1,0 +1,16 @@
+{
+  "datasets": [
+    {
+      "data_root": "/home/nas5/kinamkim/Repos/geonwoo/MVRefToVideo/DATA/processed/videos",
+      "dataset_type": "video",
+      "id_token": "MVREF",
+      "video_resolution_buckets": [
+        [
+          49,
+          480,
+          992
+        ]
+      ]
+    }
+  ]
+}

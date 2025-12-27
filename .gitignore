@@ -10,9 +10,13 @@ __pycache__/
 .vscode/
 # Exclude files
 finetrainers/output/
+finetrainers/outputs/
 finetrainers/logs/
 finetrainers/check_video_info.py
 finetrainers/show_directory_tree.py
 finetrainers/test_run.log
 *.pyc
 __pycache__/
+.READ
+
+data_preprocess/

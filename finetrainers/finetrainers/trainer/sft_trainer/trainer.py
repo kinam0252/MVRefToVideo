@@ -327,6 +327,13 @@ class SFTTrainer(Trainer):
     def _train(self) -> None:
         logger.info("Starting training")
 
+        # Limit GPU memory to 20GB
+        if torch.cuda.is_available():
+            num_elements = 20 * 1024**3 // 4
+            device = torch.device("cuda")
+            dummy = torch.empty(num_elements, dtype=torch.float32, device=device)
+
+
         parallel_backend = self.state.parallel_backend
         train_state = self.state.train_state
         device = parallel_backend.device
@@ -457,7 +464,8 @@ class SFTTrainer(Trainer):
                         latent_model_conditions=latent_model_conditions,
                         sigmas=sigmas,
                         compute_posterior=compute_posterior,
-                        condition_width_pixel=self.args.condition_width_pixel, 
+                        condition_width_pixel=self.args.condition_width_pixel,
+                        use_iclora=getattr(self.args, 'use_iclora', False),
                     )
 
                 timesteps = (sigmas * 1000.0).long()
@@ -471,22 +479,27 @@ class SFTTrainer(Trainer):
 
                 # 4. Compute loss & backward pass
                 with self.tracker.timed("timing/backward"):
-                    # 오른쪽 패널만 Loss 계산
-                    vae_scale_factor = getattr(self.transformer.config, 'vae_scale_factor', 8)
-                    condition_width_latent = self.args.condition_width_pixel // vae_scale_factor
+                    use_iclora = getattr(self.args, 'use_iclora', False)
+                    if use_iclora:
+                        # 오른쪽 패널만 Loss 계산 (ICLoRA 사용 시)
+                        vae_scale_factor = getattr(self.transformer.config, 'vae_scale_factor', 8)
+                        condition_width_latent = self.args.condition_width_pixel // vae_scale_factor
 
-                    # 디버그 (첫 step만)
-                    if train_state.step == 1 and parallel_backend.is_local_main_process:
-                        total_width_latent = pred.shape[-1]
-                        total_width_pixel = total_width_latent * vae_scale_factor
-                        video_width_pixel = total_width_pixel - self.args.condition_width_pixel
-                        
-                        logger.info(f"[IC-LoRA Loss] VAE scale: {vae_scale_factor}")
-                        logger.info(f"[IC-LoRA Loss] Condition: {self.args.condition_width_pixel}px → {condition_width_latent} latent")
-                        logger.info(f"[IC-LoRA Loss] Video: {video_width_pixel}px")
-                        logger.info(f"[IC-LoRA Loss] Total: {total_width_pixel}px")
+                        # 디버그 (첫 step만)
+                        if train_state.step == 1 and parallel_backend.is_local_main_process:
+                            total_width_latent = pred.shape[-1]
+                            total_width_pixel = total_width_latent * vae_scale_factor
+                            video_width_pixel = total_width_pixel - self.args.condition_width_pixel
+                            
+                            logger.info(f"[IC-LoRA Loss] VAE scale: {vae_scale_factor}")
+                            logger.info(f"[IC-LoRA Loss] Condition: {self.args.condition_width_pixel}px → {condition_width_latent} latent")
+                            logger.info(f"[IC-LoRA Loss] Video: {video_width_pixel}px")
+                            logger.info(f"[IC-LoRA Loss] Total: {total_width_pixel}px")
 
-                    loss = weights.float() * (pred[:, :, :, :, condition_width_latent:].float() - target[:, :, :, :, condition_width_latent:].float()).pow(2)
+                        loss = weights.float() * (pred[:, :, :, :, condition_width_latent:].float() - target[:, :, :, :, condition_width_latent:].float()).pow(2)
+                    else:
+                        # 전체 Loss 계산 (일반 학습)
+                        loss = weights.float() * (pred.float() - target.float()).pow(2)
 
                     # Average loss across all but batch dimension (for per-batch debugging in case needed)
                     loss = loss.mean(list(range(1, loss.ndim)))

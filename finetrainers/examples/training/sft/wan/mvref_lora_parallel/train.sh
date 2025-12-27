@@ -17,7 +17,7 @@ BACKEND="ptd"
 # NUM_GPUS=2
 # CUDA_VISIBLE_DEVICES="2,3"
 
-NUM_GPUS=1
+NUM_GPUS=3
 # CUDA_VISIBLE_DEVICES="7" #H200 3번으로 할당
 
 
@@ -28,6 +28,7 @@ VALIDATION_DATASET_FILE="examples/training/sft/wan/mvref_lora/validation.json"
 # Depending on how many GPUs you have available, choose your degree of parallelism and technique!
 DDP_1="--parallel_backend $BACKEND --pp_degree 1 --dp_degree 1 --dp_shards 1 --cp_degree 1 --tp_degree 1"
 DDP_2="--parallel_backend $BACKEND --pp_degree 1 --dp_degree 2 --dp_shards 1 --cp_degree 1 --tp_degree 1"
+DDP_3="--parallel_backend $BACKEND --pp_degree 1 --dp_degree 3 --dp_shards 1 --cp_degree 1 --tp_degree 1"
 DDP_4="--parallel_backend $BACKEND --pp_degree 1 --dp_degree 4 --dp_shards 1 --cp_degree 1 --tp_degree 1"
 FSDP_2="--parallel_backend $BACKEND --pp_degree 1 --dp_degree 1 --dp_shards 2 --cp_degree 1 --tp_degree 1"
 FSDP_4="--parallel_backend $BACKEND --pp_degree 1 --dp_degree 1 --dp_shards 4 --cp_degree 1 --tp_degree 1"
@@ -35,7 +36,7 @@ HSDP_2_2="--parallel_backend $BACKEND --pp_degree 1 --dp_degree 2 --dp_shards 2 
 
 # Parallel arguments
 parallel_cmd=(
-  $DDP_1
+  $DDP_3
 )
 
 # Model arguments
@@ -56,8 +57,8 @@ dataset_cmd=(
   --dataset_shuffle_buffer_size 10
   --enable_precomputation
   --precomputation_items 50
-  # --precomputation_once
-  --precomputation_reuse
+  --precomputation_once
+  # --precomputation_reuse
 )
 
 # Dataloader arguments
@@ -122,7 +123,7 @@ validation_cmd=(
 
 #AFTER 
 # ICLoRA 관련 고정 폴더명
-OUTPUT_DIR="outputs/wan_iclora"
+OUTPUT_DIR="outputs/wan_iclora_parallel"
 
 miscellaneous_cmd=(
   --tracker_name "finetrainers-wan"
