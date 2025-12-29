@@ -1,4 +1,5 @@
 import argparse
+import functools
 import json
 import os
 import time
@@ -18,7 +19,7 @@ from finetrainers import data, get_logger, logging, parallel, patches, utils
 from finetrainers.args import AttentionProviderInference
 from finetrainers.config import ModelType
 from finetrainers.models import ModelSpecification
-from finetrainers.models.attention_dispatch import AttentionProvider, attention_provider
+from finetrainers.models.attention_dispatch import AttentionProvider, _AttentionProviderRegistry, attention_provider
 from finetrainers.models.cogvideox import CogVideoXModelSpecification
 from finetrainers.models.cogview4 import CogView4ModelSpecification
 from finetrainers.models.flux import FluxModelSpecification
@@ -222,6 +223,11 @@ class Inference:
         )
         registry.register_hook(hook, "attn_provider")
 
+        # Apply attention provider to VAE if it exists (same as training code)
+        if hasattr(self.pipeline, 'vae') and self.pipeline.vae is not None:
+            provider = AttentionProvider(self.args.attn_provider)
+            _apply_forward_hooks_hack(self.pipeline.vae, provider)
+
         self._maybe_torch_compile()
 
         self._init_logging()
@@ -285,6 +291,10 @@ class Inference:
                 break
 
             inference_data = inference_data[0]
+            # Add condition_width_pixel from args if not already in inference_data
+            if "condition_width_pixel" not in inference_data:
+                inference_data["condition_width_pixel"] = getattr(self.args, 'condition_width_pixel', 160)
+            
             with torch.inference_mode():
                 # Use attention_provider context manager like training code does
                 # This ensures the attention provider is properly set up
@@ -423,6 +433,33 @@ class Inference:
                 setattr(self.pipeline, model_name, compiled_model)
 
 
+# TODO(aryan): instead of this, we could probably just apply the hook to vae.children() as we know their forward methods will be invoked
+def _apply_forward_hooks_hack(module: torch.nn.Module, provider: AttentionProvider):
+    if hasattr(module, "_finetrainers_wrapped_methods"):
+        return
+
+    def create_wrapper(old_method):
+        @functools.wraps(old_method)
+        def wrapper(*args, **kwargs):
+            # Use attention_provider context manager to properly set up the provider
+            with attention_provider(provider, convert_to_fp32=True):
+                output = old_method(*args, **kwargs)
+            return output
+
+        return wrapper
+
+    methods = ["encode", "decode", "_encode", "_decode", "tiled_encode", "tiled_decode"]
+    finetrainers_wrapped_methods = []
+    for method_name in methods:
+        if not hasattr(module, method_name):
+            continue
+        method = getattr(module, method_name)
+        wrapper = create_wrapper(method)
+        setattr(module, method_name, wrapper)
+        finetrainers_wrapped_methods.append(method_name)
+    module._finetrainers_wrapped_methods = finetrainers_wrapped_methods
+
+
 class AttentionProviderHook(ModelHook):
     def __init__(
         self,
@@ -552,6 +589,8 @@ class ModelArgs(ArgsConfigMixin):
             Whether to use ICLoRA pipeline for inference.
         lora_path (`str`, defaults to `None`):
             Path to LoRA weights directory to load for inference.
+        condition_width_pixel (`int`, defaults to `160`):
+            Width in pixels of the condition region (left side) for ICLoRA inference.
     """
 
     model_name: str = None
@@ -581,6 +620,7 @@ class ModelArgs(ArgsConfigMixin):
     enable_tiling: bool = False
     use_iclora: bool = False
     lora_path: Optional[str] = None
+    condition_width_pixel: Optional[int] = 160
 
     def add_args(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
@@ -620,6 +660,7 @@ class ModelArgs(ArgsConfigMixin):
         parser.add_argument("--enable_tiling", action="store_true")
         parser.add_argument("--use_iclora", action="store_true", help="Use ICLoRA pipeline for inference")
         parser.add_argument("--lora_path", type=str, default=None, help="Path to LoRA weights directory to load for inference")
+        parser.add_argument("--condition_width_pixel", type=int, default=160, help="Width in pixels of the condition region (left side) for ICLoRA inference")
 
     def map_args(self, argparse_args: argparse.Namespace, mapped_args: "BaseArgs"):
         mapped_args.model_name = argparse_args.model_name
@@ -647,6 +688,7 @@ class ModelArgs(ArgsConfigMixin):
         mapped_args.enable_tiling = argparse_args.enable_tiling
         mapped_args.use_iclora = argparse_args.use_iclora
         mapped_args.lora_path = argparse_args.lora_path
+        mapped_args.condition_width_pixel = argparse_args.condition_width_pixel
 
     def validate_args(self, args: "BaseArgs"):
         pass

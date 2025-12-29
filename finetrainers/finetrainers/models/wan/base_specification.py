@@ -564,9 +564,9 @@ class WanModelSpecification(ModelSpecification):
             "return_dict": True,
             "output_type": "pil",
         }
-        # Add condition_width_pixel if provided
-        if "condition_width_pixel" in kwargs:
-            generation_kwargs["condition_width_pixel"] = kwargs["condition_width_pixel"]
+        # Add condition_width_pixel (default to 160 if not provided, same as training)
+        condition_width_pixel = kwargs.get("condition_width_pixel", 160)
+        generation_kwargs["condition_width_pixel"] = condition_width_pixel
         
         # ICLoRA 파이프라인인 경우 input_video 처리
         if isinstance(pipeline, WanICLoRAPipeline):

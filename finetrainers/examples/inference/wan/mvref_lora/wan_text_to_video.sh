@@ -2,6 +2,15 @@
 
 set -e -x
 
+# Change to finetrainers directory and set PYTHONPATH
+# Get the directory where this script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Navigate to finetrainers root directory (4 levels up from examples/inference/wan/mvref_lora/)
+FINETRAINERS_DIR="$(cd "$SCRIPT_DIR/../../../../" && pwd)"
+cd "$FINETRAINERS_DIR"
+# Add parent directory to PYTHONPATH so finetrainers module can be imported
+export PYTHONPATH="$(dirname "$FINETRAINERS_DIR"):${PYTHONPATH}"
+
 # export TORCH_LOGS="+dynamo,recompiles,graph_breaks"
 # export TORCHDYNAMO_VERBOSE=1
 # export WANDB_MODE="offline"
@@ -96,6 +105,7 @@ model_cmd=(
   --pretrained_model_name_or_path "Wan-AI/Wan2.1-T2V-14B-Diffusers"
   --use_iclora
   --lora_path "$LORA_PATH"
+  --condition_width_pixel 160
   # --enable_slicing  # 필요시 주석 해제
   # --enable_tiling   # 필요시 주석 해제
 )
@@ -107,8 +117,9 @@ inference_cmd=(
 )
 
 # Attention provider arguments
+# Use native attention provider (same as training default)
 attn_provider_cmd=(
-  --attn_provider sage
+  --attn_provider native
 )
 
 # Torch config arguments

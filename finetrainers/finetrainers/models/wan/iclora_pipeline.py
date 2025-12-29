@@ -609,11 +609,13 @@ class WanICLoRAPipeline(DiffusionPipeline, WanLoraLoaderMixin):
             
             # Replace latents with pure noise, but keep condition region from input_latents
             latents = noise
-            if condition_width_pixel is not None:
-                vae_scale_factor = self.vae_scale_factor_spatial
-                condition_width_latent = condition_width_pixel // vae_scale_factor
-                # latents shape: [B, C, F, H, W], preserve left side (W dimension) from input_latents
-                latents[:, :, :, :, :condition_width_latent] = input_latents[:, :, :, :, :condition_width_latent]
+            # Use default condition_width_pixel=160 if not provided (same as training)
+            if condition_width_pixel is None:
+                condition_width_pixel = 160
+            vae_scale_factor = self.vae_scale_factor_spatial
+            condition_width_latent = condition_width_pixel // vae_scale_factor
+            # latents shape: [B, C, F, H, W], preserve left side (W dimension) from input_latents
+            latents[:, :, :, :, :condition_width_latent] = input_latents[:, :, :, :, :condition_width_latent]
         else:
             latents = self.prepare_latents(
                 batch_size * num_videos_per_prompt,
@@ -684,9 +686,11 @@ class WanICLoRAPipeline(DiffusionPipeline, WanLoraLoaderMixin):
                     noise_pred = noise_uncond + current_guidance_scale * (noise_pred - noise_uncond)
 
                 # Zero out condition region in noise_pred to prevent updates
-                if input_video is not None and condition_width_pixel is not None:
+                if input_video is not None:
+                    # Use default condition_width_pixel=160 if not provided (same as training)
+                    cond_width = condition_width_pixel if condition_width_pixel is not None else 160
                     vae_scale_factor = self.vae_scale_factor_spatial
-                    condition_width_latent = condition_width_pixel // vae_scale_factor
+                    condition_width_latent = cond_width // vae_scale_factor
                     # noise_pred shape: [B, C, F, H, W], zero out left side (W dimension)
                     noise_pred[:, :, :, :, :condition_width_latent] = 0.0
 
