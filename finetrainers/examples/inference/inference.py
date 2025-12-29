@@ -17,7 +17,8 @@ from diffusers.utils import export_to_video
 from finetrainers import data, get_logger, logging, parallel, patches, utils
 from finetrainers.args import AttentionProviderInference
 from finetrainers.config import ModelType
-from finetrainers.models import ModelSpecification, attention_provider
+from finetrainers.models import ModelSpecification
+from finetrainers.models.attention_dispatch import AttentionProvider, attention_provider
 from finetrainers.models.cogvideox import CogVideoXModelSpecification
 from finetrainers.models.cogview4 import CogView4ModelSpecification
 from finetrainers.models.flux import FluxModelSpecification
@@ -166,14 +167,46 @@ class Inference:
     def _prepare_pipeline(self) -> None:
         logger.info("Initializing pipeline")
 
+        use_iclora = getattr(self.args, 'use_iclora', False)
+        logger.info(f"[_prepare_pipeline] use_iclora={use_iclora}")
+        
+        # For ICLoRA, we need to load condition and latent models first
+        # This follows the same pattern as training code (final_validation=True case)
+        tokenizer = None
+        text_encoder = None
+        vae = None
+        if use_iclora:
+            logger.info("Loading condition and latent models for ICLoRA pipeline")
+            condition_components = self.model_specification.load_condition_models()
+            latent_components = self.model_specification.load_latent_models()
+            tokenizer = condition_components.get("tokenizer")
+            text_encoder = condition_components.get("text_encoder")
+            vae = latent_components.get("vae")
+
+        # Load transformer (diffusion model)
         transformer = self.model_specification.load_diffusion_models()["transformer"]
+        
+        # Load pipeline with ICLoRA support if needed
+        # This matches the training code's final_validation=True case
         self.pipeline = self.model_specification.load_pipeline(
+            tokenizer=tokenizer,
+            text_encoder=text_encoder,
             transformer=transformer,
+            vae=vae,
             enable_slicing=self.args.enable_slicing,
             enable_tiling=self.args.enable_tiling,
             enable_model_cpu_offload=False,  # TODO(aryan): handle model/sequential/group offloading
             training=False,
+            use_iclora=use_iclora,
         )
+
+        # Load LoRA weights if specified
+        # This matches the training code's LoRA loading pattern
+        lora_path = getattr(self.args, 'lora_path', None)
+        if lora_path is not None:
+            logger.info(f"Loading LoRA weights from {lora_path}")
+            # Use pipeline's load_lora_weights method, same as training code
+            self.pipeline.load_lora_weights(lora_path)
 
     def _prepare_distributed(self) -> None:
         parallel_backend = self.state.parallel_backend
@@ -232,6 +265,11 @@ class Inference:
             dp_mesh = None
             dp_local_rank, dp_world_size = parallel_backend.local_rank, 1
 
+        # Get cp_mesh for attention provider context
+        cp_mesh = None
+        if parallel_backend.context_parallel_enabled:
+            cp_mesh = parallel_backend.get_mesh("cp")
+
         self.pipeline.to(parallel_backend.device)
 
         memory_statistics = utils.get_memory_statistics()
@@ -248,9 +286,17 @@ class Inference:
 
             inference_data = inference_data[0]
             with torch.inference_mode():
-                inference_artifacts = self.model_specification.validation(
-                    pipeline=self.pipeline, generator=generator, **inference_data
-                )
+                # Use attention_provider context manager like training code does
+                # This ensures the attention provider is properly set up
+                with attention_provider(
+                    AttentionProvider(self.args.attn_provider),
+                    mesh=cp_mesh if parallel_backend.context_parallel_enabled else None,
+                    convert_to_fp32=not self.args.cp_reduce_precision,
+                    rotate_method=self.args.cp_rotate_method,
+                ):
+                    inference_artifacts = self.model_specification.validation(
+                        pipeline=self.pipeline, generator=generator, **inference_data
+                    )
 
             if dp_local_rank != 0:
                 continue
@@ -502,6 +548,10 @@ class ModelArgs(ArgsConfigMixin):
             Whether to enable VAE slicing.
         enable_tiling (`bool`, defaults to `False`):
             Whether to enable VAE tiling.
+        use_iclora (`bool`, defaults to `False`):
+            Whether to use ICLoRA pipeline for inference.
+        lora_path (`str`, defaults to `None`):
+            Path to LoRA weights directory to load for inference.
     """
 
     model_name: str = None
@@ -529,6 +579,8 @@ class ModelArgs(ArgsConfigMixin):
     # fmt: on
     enable_slicing: bool = False
     enable_tiling: bool = False
+    use_iclora: bool = False
+    lora_path: Optional[str] = None
 
     def add_args(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
@@ -566,6 +618,8 @@ class ModelArgs(ArgsConfigMixin):
         )
         parser.add_argument("--enable_slicing", action="store_true")
         parser.add_argument("--enable_tiling", action="store_true")
+        parser.add_argument("--use_iclora", action="store_true", help="Use ICLoRA pipeline for inference")
+        parser.add_argument("--lora_path", type=str, default=None, help="Path to LoRA weights directory to load for inference")
 
     def map_args(self, argparse_args: argparse.Namespace, mapped_args: "BaseArgs"):
         mapped_args.model_name = argparse_args.model_name
@@ -591,6 +645,8 @@ class ModelArgs(ArgsConfigMixin):
         mapped_args.layerwise_upcasting_skip_modules_pattern = argparse_args.layerwise_upcasting_skip_modules_pattern
         mapped_args.enable_slicing = argparse_args.enable_slicing
         mapped_args.enable_tiling = argparse_args.enable_tiling
+        mapped_args.use_iclora = argparse_args.use_iclora
+        mapped_args.lora_path = argparse_args.lora_path
 
     def validate_args(self, args: "BaseArgs"):
         pass
