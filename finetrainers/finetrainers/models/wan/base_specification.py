@@ -493,10 +493,11 @@ class WanModelSpecification(ModelSpecification):
             del posterior
 
         noise = torch.zeros_like(latents).normal_(generator=generator)
-        # 조건 부분(왼쪽 멀티뷰)에는 노이즈 0으로 (ICLoRA 사용 시에만)
+        # 조건 부분(왼쪽 멀티뷰)에는 노이즈 0으로 (ICLoRA 사용 시에만, sdedit 모드 제외)
         # latents shape: (B, C, T, H, W)
         # W dimension: [20 (multiview) | 104 (video)] = 124 total
         use_iclora = kwargs.get('use_iclora', False)
+        # use_iclora가 False면 (sdedit 모드 포함) condition 영역에 노이즈를 0으로 설정하지 않음
         if use_iclora:
             vae_scale_factor = getattr(transformer.config, 'vae_scale_factor', 8)
             condition_width_pixel = kwargs.get('condition_width_pixel', 160)
@@ -568,9 +569,60 @@ class WanModelSpecification(ModelSpecification):
         condition_width_pixel = kwargs.get("condition_width_pixel", 160)
         generation_kwargs["condition_width_pixel"] = condition_width_pixel
         
+        # Add iclora_mode (default to "preserve" if not provided)
+        iclora_mode = kwargs.get("iclora_mode", "preserve")
+        generation_kwargs["iclora_mode"] = iclora_mode
+        
         # ICLoRA 파이프라인인 경우 input_video 처리
+        debug_mode = kwargs.get("debug_mode", False)
+        debug_output_dir = kwargs.get("debug_output_dir", None)
+        
         if isinstance(pipeline, WanICLoRAPipeline):
             if video is not None:
+                # Debug mode: Save input video first frame with red boxes marking condition and target regions
+                if debug_mode and debug_output_dir is not None and len(video) > 0:
+                    import os
+                    import time
+                    from PIL import ImageDraw
+                    
+                    condition_width = kwargs.get("condition_width_pixel", 160)
+                    time_ = int(time.time())
+                    
+                    # Get first frame
+                    first_frame_input = video[0]
+                    frame_width = first_frame_input.width
+                    frame_height = first_frame_input.height
+                    
+                    # Create a copy of the first frame to draw on
+                    annotated_frame = first_frame_input.copy()
+                    draw = ImageDraw.Draw(annotated_frame)
+                    
+                    # Draw red box around condition region (left side)
+                    # Box coordinates: (x1, y1, x2, y2)
+                    condition_box = (0, 0, condition_width - 1, frame_height - 1)
+                    draw.rectangle(condition_box, outline="red", width=3)
+                    
+                    # Draw red box around target region (right side)
+                    target_box = (condition_width, 0, frame_width - 1, frame_height - 1)
+                    draw.rectangle(target_box, outline="red", width=3)
+                    
+                    # Add text labels
+                    # Condition label (top-left of condition region)
+                    draw.text((5, 5), "CONDITION", fill="red", anchor="lt")
+                    # Target label (top-left of target region)
+                    draw.text((condition_width + 5, 5), "TARGET", fill="red", anchor="lt")
+                    
+                    # Save annotated frame
+                    annotated_filename = f"debug-input-first-frame-annotated-{time_}.png"
+                    annotated_path = os.path.join(debug_output_dir, annotated_filename)
+                    annotated_frame.save(annotated_path)
+                    
+                    logger.info(f"[DEBUG] Saved annotated input first frame to {annotated_path}")
+                    logger.info(f"[DEBUG] Condition region: 0-{condition_width}px, Target region: {condition_width}-{frame_width}px")
+                    print(f"DEBUG: Saved annotated input first frame to {annotated_path}")
+                    print(f"DEBUG: Condition region: 0-{condition_width}px (red box)")
+                    print(f"DEBUG: Target region: {condition_width}-{frame_width}px (red box)")
+                
                 # PIL.Image 리스트를 tensor로 변환: [F, C, H, W]
                 device = pipeline._execution_device
                 dtype = pipeline.vae.dtype
@@ -601,6 +653,12 @@ class WanModelSpecification(ModelSpecification):
                 
                 video_tensor = video_tensor.to(device=device, dtype=dtype)
                 generation_kwargs["input_video"] = video_tensor
+                
+                # Debug mode: Print tensor information
+                if debug_mode:
+                    print(f"DEBUG: Input video tensor shape: {video_tensor.shape}")
+                    print(f"DEBUG: Input video tensor dtype: {video_tensor.dtype}")
+                    print(f"DEBUG: Input video tensor device: {video_tensor.device}")
         #Before 
         elif self.transformer_config.get("image_dim", None) is not None:
             if image is None and video is None:

@@ -459,6 +459,7 @@ class WanICLoRAPipeline(DiffusionPipeline, WanLoraLoaderMixin):
         max_sequence_length: int = 512,
         input_video: Optional[torch.Tensor] = None,
         condition_width_pixel: Optional[int] = None,
+        iclora_mode: str = "preserve",
     ):
         r"""
         The call function to the pipeline for generation.
@@ -520,6 +521,10 @@ class WanICLoRAPipeline(DiffusionPipeline, WanLoraLoaderMixin):
             max_sequence_length (`int`, defaults to `512`):
                 The maximum sequence length of the text encoder. If the prompt is longer than this, it will be
                 truncated. If the prompt is shorter, it will be padded to this length.
+            iclora_mode (`str`, defaults to `"preserve"`):
+                Mode for ICLoRA inference. Choose between:
+                - `"preserve"`: Preserve the clean condition region throughout denoising (default)
+                - `"sdedit"`: Apply SDEdit - replace condition region with clean condition + current timestep noise at each step
 
         Examples:
 
@@ -599,23 +604,34 @@ class WanICLoRAPipeline(DiffusionPipeline, WanLoraLoaderMixin):
             else self.transformer_2.config.in_channels
         )
         # Encode input_video if provided
+        clean_condition_latents = None
         if input_video is not None:
             if not isinstance(input_video, torch.Tensor) or input_video.ndim not in [4, 5]:
                 raise ValueError(f"`input_video` must be a 4D or 5D torch.Tensor, got {type(input_video)} with shape {getattr(input_video, 'shape', 'N/A')}")
             input_latents = self.encode_video_to_latents(input_video)
             
-            # Replace with pure noise, but preserve condition region (left side)
+            # Use default condition_width_pixel=160 if not provided (same as training)
+            if condition_width_pixel is None:
+                raise ValueError("condition_width_pixel is required when input_video is provided")
+            vae_scale_factor = self.vae_scale_factor_spatial
+            condition_width_latent = condition_width_pixel // vae_scale_factor
+            
+            # Store clean condition latents for SDEdit mode
+            clean_condition_latents = input_latents[:, :, :, :, :condition_width_latent].clone()
+            
+            # Replace with pure noise, but preserve condition region (left side) based on mode
             noise = randn_tensor(input_latents.shape, generator=generator, device=device, dtype=input_latents.dtype)
             
             # Replace latents with pure noise, but keep condition region from input_latents
             latents = noise
-            # Use default condition_width_pixel=160 if not provided (same as training)
-            if condition_width_pixel is None:
-                condition_width_pixel = 160
-            vae_scale_factor = self.vae_scale_factor_spatial
-            condition_width_latent = condition_width_pixel // vae_scale_factor
-            # latents shape: [B, C, F, H, W], preserve left side (W dimension) from input_latents
-            latents[:, :, :, :, :condition_width_latent] = input_latents[:, :, :, :, :condition_width_latent]
+            if iclora_mode == "preserve":
+                # Preserve mode: keep clean condition region
+                latents[:, :, :, :, :condition_width_latent] = input_latents[:, :, :, :, :condition_width_latent]
+            elif iclora_mode == "sdedit":
+                # SDEdit mode: will be handled in denoising loop
+                pass
+            else:
+                raise ValueError(f"Unknown iclora_mode: {iclora_mode}. Choose 'preserve' or 'sdedit'")
         else:
             latents = self.prepare_latents(
                 batch_size * num_videos_per_prompt,
@@ -646,6 +662,32 @@ class WanICLoRAPipeline(DiffusionPipeline, WanLoraLoaderMixin):
                     continue
 
                 self._current_timestep = t
+
+                # SDEdit mode: replace condition region with clean condition + current timestep noise
+                if iclora_mode == "sdedit" and input_video is not None and clean_condition_latents is not None:
+                    # Get sigma for current timestep
+                    # For Flow Matching, timesteps are already in [0, num_train_timesteps] range
+                    # We need to convert to [0, 1] range for flow_match_xt
+                    num_train_timesteps = self.scheduler.config.num_train_timesteps
+                    sigma = t.float() / num_train_timesteps
+                    # Ensure sigma is in [0, 1] range
+                    sigma = torch.clamp(sigma, 0.0, 1.0)
+                    
+                    # Generate noise for condition region
+                    condition_noise = randn_tensor(
+                        clean_condition_latents.shape,
+                        generator=generator,
+                        device=device,
+                        dtype=clean_condition_latents.dtype
+                    )
+                    
+                    # Apply flow matching: x_t = (1 - sigma) * x_0 + sigma * noise
+                    # flow_match_xt expects sigma as a scalar or tensor that can be broadcast
+                    from finetrainers.functional import flow_match_xt
+                    noisy_condition = flow_match_xt(clean_condition_latents, condition_noise, sigma)
+                    
+                    # Replace condition region in latents
+                    latents[:, :, :, :, :condition_width_latent] = noisy_condition
 
                 if boundary_timestep is None or t >= boundary_timestep:
                     # wan2.1 or high-noise stage in wan2.2

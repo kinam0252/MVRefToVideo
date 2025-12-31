@@ -457,6 +457,12 @@ class SFTTrainer(Trainer):
             # If only forward runs under context, backward will most likely fail when using activation checkpointing
             with self.attention_provider_ctx(training=True):
                 with self.tracker.timed("timing/forward"):
+                    # Check if ICLoRA processing should be applied (skip for sdedit mode)
+                    use_iclora_flag = getattr(self.args, 'use_iclora', False)
+                    iclora_mode = getattr(self.args, 'iclora_mode', 'preserve')
+                    # In sdedit mode, skip ICLoRA processing (treat as if use_iclora=False)
+                    apply_iclora = use_iclora_flag and iclora_mode != "sdedit"
+                    
                     pred, target, sigmas = self.model_specification.forward(
                         transformer=self.transformer,
                         scheduler=self.scheduler,
@@ -465,7 +471,7 @@ class SFTTrainer(Trainer):
                         sigmas=sigmas,
                         compute_posterior=compute_posterior,
                         condition_width_pixel=self.args.condition_width_pixel,
-                        use_iclora=getattr(self.args, 'use_iclora', False),
+                        use_iclora=apply_iclora,
                     )
 
                 timesteps = (sigmas * 1000.0).long()
@@ -479,8 +485,12 @@ class SFTTrainer(Trainer):
 
                 # 4. Compute loss & backward pass
                 with self.tracker.timed("timing/backward"):
-                    use_iclora = getattr(self.args, 'use_iclora', False)
-                    if use_iclora:
+                    use_iclora_flag = getattr(self.args, 'use_iclora', False)
+                    iclora_mode = getattr(self.args, 'iclora_mode', 'preserve')
+                    # In sdedit mode, skip ICLoRA processing (treat as if use_iclora=False)
+                    apply_iclora = use_iclora_flag and iclora_mode != "sdedit"
+                    
+                    if apply_iclora:
                         # 오른쪽 패널만 Loss 계산 (ICLoRA 사용 시)
                         vae_scale_factor = getattr(self.transformer.config, 'vae_scale_factor', 8)
                         condition_width_latent = self.args.condition_width_pixel // vae_scale_factor
@@ -658,8 +668,10 @@ class SFTTrainer(Trainer):
 
             validation_data = validation_data[0]
             with self.attention_provider_ctx(training=False):
+                # Pass iclora_mode to validation (for sdedit mode support)
+                iclora_mode = getattr(self.args, 'iclora_mode', 'preserve')
                 validation_artifacts = self.model_specification.validation(
-                    pipeline=pipeline, generator=generator, condition_width_pixel=self.args.condition_width_pixel, **validation_data
+                    pipeline=pipeline, generator=generator, condition_width_pixel=self.args.condition_width_pixel, iclora_mode=iclora_mode, **validation_data
                 )
 
             if dp_local_rank != 0:

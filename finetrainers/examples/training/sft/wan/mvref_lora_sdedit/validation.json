@@ -1,0 +1,20 @@
+{
+  "data": [
+    {
+      "caption": "MVREF Generate the target based on the condition. [CONDITION] Multi-view images of shoes on the left side of the frame [TARGET] A stylish young woman walks confidently in a modern studio, showcasing elegant white sneakers, cinematic commercial lighting, luxury brand advertisement style, 4K quality",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/videos/1.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
+    },
+    {
+      "caption": "MVREF Generate the target based on the condition. [CONDITION] Multi-view images of a premium leather bag on the left side of the frame [TARGET] A stylish professional prepares for a business trip, adjusting a luxury leather bag in a modern airport lounge, cinematic lighting, fashion brand commercial, high-end production quality.",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/videos/11.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
+    }
+  ]
+}

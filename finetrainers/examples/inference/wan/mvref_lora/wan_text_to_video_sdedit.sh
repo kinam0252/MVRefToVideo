@@ -27,7 +27,7 @@ NUM_GPUS=1
 
 # Check the JSON files for the expected JSON format
 # validation.json을 참고하여 적절한 데이터셋 파일 경로 설정
-DATASET_FILE="examples/training/sft/wan/mvref_lora/validation.json"
+DATASET_FILE="examples/training/sft/wan/mvref_lora_debug/validation.json"
 
 # 체크포인트 디렉토리 설정 (트레이닝 출력 디렉토리)
 # 예: "outputs/wan_iclora" 또는 절대 경로
@@ -106,7 +106,8 @@ model_cmd=(
   --use_iclora
   --lora_path "$LORA_PATH"
   --condition_width_pixel 160
-  --iclora_mode "preserve"  # "preserve" (default) or "sdedit"
+  --iclora_mode "sdedit"  # "preserve" (default) or "sdedit"
+  --vanilla  # Uncomment to skip LoRA loading (can be combined with any iclora_mode)
   # --enable_slicing  # 필요시 주석 해제
   # --enable_tiling   # 필요시 주석 해제
 )
@@ -137,6 +138,7 @@ miscellaneous_cmd=(
   --init_timeout 600
   --nccl_timeout 600
   --report_to "wandb"
+  --debug_mode
 )
 
 # Execute the inference script

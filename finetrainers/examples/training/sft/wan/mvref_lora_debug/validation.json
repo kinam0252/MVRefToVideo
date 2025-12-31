@@ -1,0 +1,44 @@
+{
+  "data": [
+    {
+      "caption": "MVREF Generate the target based on the condition. [CONDITION] Multi-view images of shoes on the left side of the frame [TARGET] A stylish young woman walks confidently in a modern studio, showcasing elegant white sneakers, cinematic commercial lighting, luxury brand advertisement style, 4K quality",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/videos/1.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
+    },
+    {
+      "caption": "MVREF Generate the target based on the condition. [CONDITION] Multi-view images of shoes on the left side of the frame [TARGET] A professional athlete ties premium running shoes in a sleek gym, dramatic lighting, sports brand commercial, high-end production quality",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/videos/1.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
+    },
+    {
+      "caption": "MVREF Generate the target based on the condition. [CONDITION] Multi-view images of shoes on the left side of the frame [TARGET] A professional athlete ties premium running shoes in a sleek gym, dramatic lighting, sports brand commercial, high-end production quality",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/videos/1.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
+    },
+    {
+      "caption": "MVREF Generate the target based on the condition. [CONDITION] Multi-view images of shoes on the left side of the frame [TARGET] A professional athlete ties premium running shoes in a sleek gym, dramatic lighting, sports brand commercial, high-end production quality",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/videos/1.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
+    },
+    {
+      "caption": "MVREF Generate the target based on the condition. [CONDITION] Multi-view images of shoes on the left side of the frame [TARGET] A professional athlete ties premium running shoes in a sleek gym, dramatic lighting, sports brand commercial, high-end production quality",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/videos/1.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
+    }
+  ]
+}

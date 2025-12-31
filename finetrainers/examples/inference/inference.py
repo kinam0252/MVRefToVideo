@@ -201,13 +201,16 @@ class Inference:
             use_iclora=use_iclora,
         )
 
-        # Load LoRA weights if specified
+        # Load LoRA weights if specified (skip in vanilla mode)
         # This matches the training code's LoRA loading pattern
         lora_path = getattr(self.args, 'lora_path', None)
-        if lora_path is not None:
+        vanilla = getattr(self.args, 'vanilla', False)
+        if lora_path is not None and not vanilla:
             logger.info(f"Loading LoRA weights from {lora_path}")
             # Use pipeline's load_lora_weights method, same as training code
             self.pipeline.load_lora_weights(lora_path)
+        elif vanilla:
+            logger.info("Vanilla mode: Using ICLoRA pipeline without LoRA weights")
 
     def _prepare_distributed(self) -> None:
         parallel_backend = self.state.parallel_backend
@@ -294,6 +297,11 @@ class Inference:
             # Add condition_width_pixel from args if not already in inference_data
             if "condition_width_pixel" not in inference_data:
                 inference_data["condition_width_pixel"] = getattr(self.args, 'condition_width_pixel', 160)
+            # Add iclora_mode from args if not already in inference_data
+            if "iclora_mode" not in inference_data:
+                inference_data["iclora_mode"] = getattr(self.args, 'iclora_mode', 'preserve')
+            
+            DEBUG_MODE = getattr(self.args, 'debug_mode', False)
             
             with torch.inference_mode():
                 # Use attention_provider context manager like training code does
@@ -304,8 +312,13 @@ class Inference:
                     convert_to_fp32=not self.args.cp_reduce_precision,
                     rotate_method=self.args.cp_rotate_method,
                 ):
+                    # Pass debug_mode to validation
+                    validation_kwargs = inference_data.copy()
+                    if DEBUG_MODE:
+                        validation_kwargs["debug_mode"] = True
+                        validation_kwargs["debug_output_dir"] = self.args.output_dir
                     inference_artifacts = self.model_specification.validation(
-                        pipeline=self.pipeline, generator=generator, **inference_data
+                        pipeline=self.pipeline, generator=generator, **validation_kwargs
                     )
 
             if dp_local_rank != 0:
@@ -315,6 +328,20 @@ class Inference:
             IMAGE = inference_data.get("image", None)
             VIDEO = inference_data.get("video", None)
             EXPORT_FPS = inference_data.get("export_fps", 30)
+            DEBUG_MODE = getattr(self.args, 'debug_mode', False)
+
+            # Debug mode: print information
+            if DEBUG_MODE:
+                print(f"\n{'='*60}")
+                print(f"DEBUG MODE: Processing sample")
+                print(f"{'='*60}")
+                print(f"Prompt: {PROMPT}")
+                print(f"Has input video: {VIDEO is not None}")
+                if VIDEO is not None:
+                    print(f"Input video frames: {len(VIDEO)}")
+                condition_width = inference_data.get("condition_width_pixel", 160)
+                print(f"Condition width: {condition_width} pixels")
+                print(f"{'='*60}\n")
 
             # 2.1. If there are any initial images or videos, they will be logged to keep track of them as
             # conditioning for generation.
@@ -329,6 +356,77 @@ class Inference:
                 if inference_artifact.value is None:
                     continue
                 artifacts.update({f"artifact_{i}": inference_artifact})
+                
+                # Debug mode: Save condition and target regions for all frames
+                if DEBUG_MODE and isinstance(inference_artifact, data.VideoArtifact) and inference_artifact.value is not None:
+                    video_frames = inference_artifact.value
+                    if len(video_frames) > 0:
+                        condition_width = inference_data.get("condition_width_pixel", 160)
+                        time_ = int(time.time())
+                        rank = parallel_backend.rank
+                        
+                        # Create directories for organized output
+                        debug_dir = os.path.join(self.args.output_dir, f"debug-{rank}-{i}-{prompt_filename}-{time_}")
+                        condition_dir = os.path.join(debug_dir, "condition_frames")
+                        target_dir = os.path.join(debug_dir, "target_frames")
+                        full_dir = os.path.join(debug_dir, "full_frames")
+                        
+                        os.makedirs(condition_dir, exist_ok=True)
+                        os.makedirs(target_dir, exist_ok=True)
+                        os.makedirs(full_dir, exist_ok=True)
+                        
+                        print(f"DEBUG: Saving debug frames to {debug_dir}")
+                        print(f"DEBUG: Total frames: {len(video_frames)}")
+                        print(f"DEBUG: Condition width: {condition_width} pixels")
+                        
+                        # Save each frame's condition, target, and full regions
+                        for frame_idx, frame in enumerate(video_frames):
+                            frame_width = frame.width
+                            frame_height = frame.height
+                            
+                            # Extract condition region (left side)
+                            condition_region = frame.crop((0, 0, condition_width, frame_height))
+                            condition_filename = f"frame_{frame_idx:04d}_condition.png"
+                            condition_path = os.path.join(condition_dir, condition_filename)
+                            condition_region.save(condition_path)
+                            
+                            # Extract target region (right side, condition 제외)
+                            target_region = frame.crop((condition_width, 0, frame_width, frame_height))
+                            target_filename = f"frame_{frame_idx:04d}_target.png"
+                            target_path = os.path.join(target_dir, target_filename)
+                            target_region.save(target_path)
+                            
+                            # Save full frame for reference
+                            full_filename = f"frame_{frame_idx:04d}_full.png"
+                            full_path = os.path.join(full_dir, full_filename)
+                            frame.save(full_path)
+                            
+                            if frame_idx == 0 or (frame_idx + 1) % 10 == 0:
+                                print(f"DEBUG: Saved frame {frame_idx + 1}/{len(video_frames)} - condition: {condition_region.size}, target: {target_region.size}")
+                        
+                        print(f"DEBUG: All frames saved to {debug_dir}")
+                        
+                        # Also save first frame separately for quick reference
+                        first_frame = video_frames[0]
+                        condition_region = first_frame.crop((0, 0, condition_width, first_frame.height))
+                        target_region = first_frame.crop((condition_width, 0, first_frame.width, first_frame.height))
+                        
+                        condition_filename = f"debug-condition-{rank}-{i}-{prompt_filename}-{time_}.png"
+                        condition_output_path = os.path.join(self.args.output_dir, condition_filename)
+                        condition_region.save(condition_output_path)
+                        
+                        target_filename = f"debug-target-{rank}-{i}-{prompt_filename}-{time_}.png"
+                        target_output_path = os.path.join(self.args.output_dir, target_filename)
+                        target_region.save(target_output_path)
+                        
+                        first_frame_filename = f"debug-first-frame-{rank}-{i}-{prompt_filename}-{time_}.png"
+                        first_frame_output_path = os.path.join(self.args.output_dir, first_frame_filename)
+                        first_frame.save(first_frame_output_path)
+                        
+                        print(f"DEBUG: Saved first frame summary:")
+                        print(f"  - Condition: {condition_output_path}")
+                        print(f"  - Target: {target_output_path}")
+                        print(f"  - Full: {first_frame_output_path}")
 
             # 2.3. Save the artifacts to the output directory and create appropriate logging objects
             # TODO(aryan): Currently, we only support WandB so we've hardcoded it here. Needs to be revisited.
@@ -591,6 +689,12 @@ class ModelArgs(ArgsConfigMixin):
             Path to LoRA weights directory to load for inference.
         condition_width_pixel (`int`, defaults to `160`):
             Width in pixels of the condition region (left side) for ICLoRA inference.
+        iclora_mode (`str`, defaults to `"preserve"`):
+            Mode for ICLoRA inference. Choose between:
+            - `"preserve"`: Preserve the clean condition region throughout denoising (default)
+            - `"sdedit"`: Apply SDEdit - replace condition region with clean condition + current timestep noise at each step
+        vanilla (`bool`, defaults to `False`):
+            If True, skip loading LoRA weights even if lora_path is provided. Can be combined with any iclora_mode.
     """
 
     model_name: str = None
@@ -621,6 +725,8 @@ class ModelArgs(ArgsConfigMixin):
     use_iclora: bool = False
     lora_path: Optional[str] = None
     condition_width_pixel: Optional[int] = 160
+    iclora_mode: str = "preserve"
+    vanilla: bool = False
 
     def add_args(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument(
@@ -661,6 +767,8 @@ class ModelArgs(ArgsConfigMixin):
         parser.add_argument("--use_iclora", action="store_true", help="Use ICLoRA pipeline for inference")
         parser.add_argument("--lora_path", type=str, default=None, help="Path to LoRA weights directory to load for inference")
         parser.add_argument("--condition_width_pixel", type=int, default=160, help="Width in pixels of the condition region (left side) for ICLoRA inference")
+        parser.add_argument("--iclora_mode", type=str, default="preserve", choices=["preserve", "sdedit"], help="Mode for ICLoRA inference: 'preserve' (default) or 'sdedit'")
+        parser.add_argument("--vanilla", action="store_true", help="Skip loading LoRA weights even if lora_path is provided. Can be combined with any iclora_mode.")
 
     def map_args(self, argparse_args: argparse.Namespace, mapped_args: "BaseArgs"):
         mapped_args.model_name = argparse_args.model_name
@@ -689,6 +797,8 @@ class ModelArgs(ArgsConfigMixin):
         mapped_args.use_iclora = argparse_args.use_iclora
         mapped_args.lora_path = argparse_args.lora_path
         mapped_args.condition_width_pixel = argparse_args.condition_width_pixel
+        mapped_args.iclora_mode = argparse_args.iclora_mode
+        mapped_args.vanilla = argparse_args.vanilla
 
     def validate_args(self, args: "BaseArgs"):
         pass
@@ -834,6 +944,8 @@ class MiscellaneousArgs(ArgsConfigMixin):
                 - 1: Diffusers/Transformers info logging on local main process only
                 - 2: Diffusers/Transformers debug logging on local main process only
                 - 3: Diffusers/Transformers debug logging on all processes
+        debug_mode (`bool`, defaults to `False`):
+            Whether to enable debug mode. When enabled, saves debug visualizations including condition region.
     """
 
     seed: Optional[int] = None
@@ -844,6 +956,7 @@ class MiscellaneousArgs(ArgsConfigMixin):
     nccl_timeout: int = 600  # 10 minutes
     report_to: str = "wandb"
     verbose: int = 1
+    debug_mode: bool = False
 
     def add_args(self, parser: argparse.ArgumentParser) -> None:
         parser.add_argument("--seed", type=int, default=None)
@@ -854,6 +967,7 @@ class MiscellaneousArgs(ArgsConfigMixin):
         parser.add_argument("--nccl_timeout", type=int, default=600)
         parser.add_argument("--report_to", type=str, default="none", choices=["none", "wandb"])
         parser.add_argument("--verbose", type=int, default=0, choices=[0, 1, 2, 3])
+        parser.add_argument("--debug_mode", action="store_true", help="Enable debug mode for detailed output and visualizations")
 
     def map_args(self, argparse_args: argparse.Namespace, mapped_args: "BaseArgs"):
         mapped_args.seed = argparse_args.seed
@@ -864,6 +978,7 @@ class MiscellaneousArgs(ArgsConfigMixin):
         mapped_args.nccl_timeout = argparse_args.nccl_timeout
         mapped_args.report_to = argparse_args.report_to
         mapped_args.verbose = argparse_args.verbose
+        mapped_args.debug_mode = argparse_args.debug_mode
 
     def validate_args(self, args: "BaseArgs"):
         pass
