@@ -20,3 +20,4 @@ __pycache__/
 .READ
 
 data_preprocess/
+archive/

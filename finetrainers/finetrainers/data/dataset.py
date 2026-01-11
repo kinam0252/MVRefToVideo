@@ -645,28 +645,28 @@ class ValidationDataset(torch.utils.data.IterableDataset):
             if sample.get("image_path", None) is not None:
                 image_path = sample["image_path"]
                 if not pathlib.Path(image_path).is_file() and not image_path.startswith("http"):
-                    logger.warning(f"Image file {image_path.as_posix()} does not exist.")
+                    logger.warning(f"Image file {image_path} does not exist.")
                 else:
                     sample["image"] = load_image(sample["image_path"])
 
             if sample.get("video_path", None) is not None:
                 video_path = sample["video_path"]
                 if not pathlib.Path(video_path).is_file() and not video_path.startswith("http"):
-                    logger.warning(f"Video file {video_path.as_posix()} does not exist.")
+                    logger.warning(f"Video file {video_path} does not exist.")
                 else:
                     sample["video"] = load_video(sample["video_path"])
 
             if sample.get("control_image_path", None) is not None:
                 control_image_path = sample["control_image_path"]
                 if not pathlib.Path(control_image_path).is_file() and not control_image_path.startswith("http"):
-                    logger.warning(f"Control Image file {control_image_path.as_posix()} does not exist.")
+                    logger.warning(f"Control Image file {control_image_path} does not exist.")
                 else:
                     sample["control_image"] = load_image(sample["control_image_path"])
 
             if sample.get("control_video_path", None) is not None:
                 control_video_path = sample["control_video_path"]
                 if not pathlib.Path(control_video_path).is_file() and not control_video_path.startswith("http"):
-                    logger.warning(f"Control Video file {control_video_path.as_posix()} does not exist.")
+                    logger.warning(f"Control Video file {control_video_path} does not exist.")
                 else:
                     sample["control_video"] = load_video(sample["control_video_path"])
 

@@ -27,7 +27,7 @@ NUM_GPUS=1
 
 # Check the JSON files for the expected JSON format
 # validation.json을 참고하여 적절한 데이터셋 파일 경로 설정
-DATASET_FILE="examples/training/sft/wan/mvref_lora/validation.json"
+DATASET_FILE="examples/training/sft/wan/mvref_lora_test/validation.json"
 
 # 체크포인트 디렉토리 설정 (트레이닝 출력 디렉토리)
 # 예: "outputs/wan_iclora" 또는 절대 경로

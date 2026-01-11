@@ -1,0 +1,84 @@
+{
+  "data": [
+    {
+      "caption": "MVREF Generate the target based on the condition. [CONDITION] Multi-view images of a bag on the left side of the frame [TARGET] A fashionable woman carries an elegant designer handbag through a modern city street, natural daylight, luxury fashion photography style, cinematic composition, 4K quality",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/test/videos/1.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
+    },
+    {
+      "caption": "MVREF Generate the target based on the condition. [CONDITION] Multi-view images of a hat on the left side of the frame [TARGET] A stylish person wears a trendy cap while walking in an urban setting, golden hour lighting, street fashion photography, dynamic movement, high-end commercial style",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/test/videos/2.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
+    },
+    {
+      "caption": "MVREF Generate the target based on the condition. [CONDITION] Multi-view images of glasses on the left side of the frame [TARGET] A professional model adjusts elegant eyeglasses in a minimalist studio, soft studio lighting, luxury eyewear advertisement, clean background, premium product photography",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/test/videos/3.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
+    },
+    {
+      "caption": "MVREF Generate the target based on the condition. [CONDITION] Multi-view images of shoes on the left side of the frame [TARGET] A stylish young woman walks confidently in a modern studio, showcasing elegant white sneakers, cinematic commercial lighting, luxury brand advertisement style, 4K quality",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/test/videos/4.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
+    },
+    {
+      "caption": "MVREF Generate the target based on the condition. [CONDITION] Multi-view images of a beverage on the left side of the frame [TARGET] A refreshing drink is poured into a glass on a sunny outdoor table, natural lighting, lifestyle photography, vibrant colors, commercial advertisement style",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/test/videos/5.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
+    },
+    {
+      "caption": "MVREF Generate the target based on the condition. [CONDITION] Multi-view images of a chair on the left side of the frame [TARGET] A modern designer chair in a contemporary living room, natural window light, interior design photography, minimalist aesthetic, high-end furniture showcase",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/test/videos/6.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
+    },
+    {
+      "caption": "MVREF Generate the target based on the condition. [CONDITION] Multi-view images of a camera on the left side of the frame [TARGET] A photographer uses a professional camera in a creative studio, dramatic lighting, artistic composition, tech product photography, cinematic commercial style",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/test/videos/7.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
+    },
+    {
+      "caption": "MVREF Generate the target based on the condition. [CONDITION] Multi-view images of a headset on the left side of the frame [TARGET] A gamer wears a premium gaming headset in a modern setup, neon lighting, tech product showcase, dynamic gaming atmosphere, high-end electronics advertisement",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/test/videos/8.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
+    },
+    {
+      "caption": "MVREF Generate the target based on the condition. [CONDITION] Multi-view images of cosmetics on the left side of the frame [TARGET] Elegant beauty products arranged on a vanity table, soft natural lighting, luxury cosmetics photography, glamorous atmosphere, high-end beauty brand style",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/test/videos/9.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
+    },
+    {
+      "caption": "MVREF Generate the target based on the condition. [CONDITION] Multi-view images of a mobile phone on the left side of the frame [TARGET] A sleek smartphone displayed on a modern desk, professional product photography, tech commercial style, clean minimalist background, premium device showcase",
+      "video_path": "/home/nas5/kinamkim/Repos/Fliption/DATA/processed/test/videos/10.mp4",
+      "num_inference_steps": 50,
+      "num_frames": 49,
+      "height": 480,
+      "width": 992
+    }
+  ]
+}
