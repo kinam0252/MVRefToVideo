@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Logs
+*.log
+crop_log*.json
+
+# Backup
+*.backup
+*.bak

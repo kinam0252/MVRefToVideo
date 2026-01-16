@@ -21,3 +21,6 @@ __pycache__/
 
 data_preprocess/
 archive/
+
+# Local data archive
+_archive/
